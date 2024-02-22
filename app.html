@@ -3,9 +3,12 @@
 
 <head>
 	<title>WebGL Demo</title>
+	<link rel='stylesheet' href='app.css'>
 </head>
 <body>
-	<canvas id='webgl-canvas' width=800 height=600></canvas>
+	<label for='model-selector' id='model-label'>No file selected.</label>
+	<input type=file id='model-selector'>
+	<canvas id='webgl-canvas'></canvas>
 </body>
 <footer>
 	<script src='app.js'></script>
