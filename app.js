@@ -2,7 +2,8 @@ var canvas;
 var gl;
 var program = {};
 var vbo;
-var ibo;
+var vertex_count;
+//var ibo;
 var running = true;
 var tick_delay = 1000 / 30;
 var ActionLabels = {
@@ -49,11 +50,14 @@ var camera = {
 
 const vert_source = `
 attribute vec4 a_vertex;
+attribute vec3 a_normal;
 uniform mat4 u_proj;
 uniform float u_view[5]; // x y z x_pitch y_pitch
-
 precision highp float;
-varying float p_depth;
+
+varying vec3 p_normal;
+varying vec3 p_camera_position;
+varying vec3 p_model_position;
 
 #define xi	0
 #define yi	1
@@ -64,7 +68,10 @@ varying float p_depth;
 void
 main()
 {
-	p_depth = a_vertex.z;
+	p_normal = a_normal;
+	p_camera_position = vec3(u_view[xi], u_view[yi], u_view[zi]);
+	p_model_position = a_vertex.xyz;
+
 	float cx = cos(u_view[xpi]);
 	float sx = sin(u_view[xpi]);
 	float cy = cos(u_view[ypi]);
@@ -79,13 +86,23 @@ main()
 }
 `;
 const frag_source = `
-precision mediump float;
-varying float p_depth;
+precision highp float;
+
+varying vec3 p_normal;
+varying vec3 p_camera_position;
+varying vec3 p_model_position;
+
+const vec3 sun = vec3(0, 1, 2);
 
 void
 main()
 {
-	gl_FragColor = vec4(1., 0, p_depth + .5, 1.);
+	vec3 unit_normal = normalize(p_normal);
+	float sun_factor = .6 * dot(unit_normal, normalize(sun));
+	if (sun_factor < .0)
+		sun_factor = .0;
+
+	gl_FragColor = vec4(vec3(1.) * (.1 + sun_factor), 1.);
 }
 `;
 
@@ -154,14 +171,14 @@ function render()
 	gl.useProgram(program.hdl);
 	let view = [-camera.pos.x, -camera.pos.y, -camera.pos.z, -camera.pitch.x,
 		-camera.pitch.y];
-	gl.uniform1fv(program.uniforms.u_view, new Float32Array(view));
+	gl.uniform1fv(program.uniforms.view, new Float32Array(view));
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-	gl.vertexAttribPointer(program.attribs.vertex, 3, gl.FLOAT, false, 0, 0);
+	gl.vertexAttribPointer(program.attribs.vertex, 3, gl.FLOAT, false, 24, 0);
 	gl.enableVertexAttribArray(program.attribs.vertex);
-	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-
-	gl.drawElements(gl.TRIANGLES, 12, gl.UNSIGNED_BYTE, null);
+	gl.vertexAttribPointer(program.attribs.normal, 3, gl.FLOAT, false, 24, 12);
+	gl.enableVertexAttribArray(program.attribs.normal);
+	gl.drawArrays(gl.TRIANGLES, 0, vertex_count);
 	
 	requestAnimationFrame(render);
 }
@@ -173,7 +190,7 @@ function resize_callback(event)
 	gl.viewport(0, 0, canvas.width, canvas.height);
 
 	gl.useProgram(program.hdl);
-	gl.uniformMatrix4fv(program.uniforms.u_proj, false,
+	gl.uniformMatrix4fv(program.uniforms.proj, false,
 		[1., 0., 0., 0.,
 		 0., canvas.width / canvas.height, 0., 0.,
 		 0., 0., -100.01/99.99, -1,
@@ -239,12 +256,16 @@ function init()
 	}
 	
 	program.attribs = {
-		vertex: gl.getAttribLocation(program.hdl, 'a_vertex'),
+		vertex: 0,
+		normal: 1
 	};
+	gl.bindAttribLocation(program.hdl, program.attribs.vertex, 'a_vertex');
+	gl.bindAttribLocation(program.hdl, program.attribs.normal, 'a_normal');
 	program.uniforms = {
-		u_proj: gl.getUniformLocation(program.hdl, 'u_proj'),
-		u_view: gl.getUniformLocation(program.hdl, 'u_view'),
+		proj: gl.getUniformLocation(program.hdl, 'u_proj'),
+		view: gl.getUniformLocation(program.hdl, 'u_view'),
 	}
+
 
 
 
@@ -253,24 +274,25 @@ function init()
 	vbo = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
 
-	let positions = [
-		0., .5, 0.,
-		.5, -.5, -.5,
-		-.5, -.5, -.5,
-		0., -.5, .5,
-	];
-	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+	let vbi = [
+		 .0,  .5,  .0,		3/3,	-2/3,	4/3,
+		 .5, -.5, -.5,		4/3,	-4/3,	2/3,
+		-.5, -.5, -.5,		-1/3,	-2/3,	6/3,
 
-	ibo = gl.createBuffer();
-	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-	let indices = [
-		0, 1, 2,
-		0, 2, 3,
-		0, 3, 1,
-		1, 3, 2,
+		 .0,  .5,  .0,		3/3,	-2/3,	4/3,
+		-.5, -.5, -.5,		-1/3,	-2/3,	6/3,
+		 .0, -.5,  .5,		3/3,	-1/3,	0/3,
+
+		 .0,  .5,  .0,		3/3,	-2/3,	4/3,
+		 .0, -.5,  .5,		3/3,	-1/3,	0/3,
+		 .5, -.5, -.5,		4/3,	-4/3,	2/3,
+
+		 .5, -.5, -.5,		4/3,	-4/3,	2/3,
+		 .0, -.5,  .5,		3/3,	-1/3,	0/3,
+		-.5, -.5, -.5,		-1/3,	-2/3,	6/3,
 	];
-	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint8Array(indices),
-		gl.STATIC_DRAW);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vbi), gl.DYNAMIC_DRAW);
+	vertex_count = vbi.length / 6;
 
 
 	<!-- Add Callbacks -->
@@ -283,8 +305,90 @@ function init()
 	canvas.onclick = canvas.requestPointerLock;
 	model_selector.onchange = () => {
 		model_selector_label.textContent = model_selector.files[0].name;
+
+		let reader = new FileReader();
+		reader.onload = () => {
+			parseModel(reader.result);
+		}
+		reader.readAsText(model_selector.files[0]);
 	};
 
 	<!-- Other Data -->
 	actions.fill(0);
+}
+
+function parseModel(data)
+{
+	/* Extract file information. */
+	var lines = data.split('\n');
+	var vertices = []
+	var vertex_normals = [];
+	var faces = [];
+
+	for (line of lines) {
+		let output_type = -1, output_destination = null;
+		switch(line.substring(0, 2)) {
+		case 'v ':
+			output_type = 0;
+			output_destination = vertices;
+			break;
+		case 'vn':
+			output_type = 0;
+			output_destination = vertex_normals;
+			break;
+		case 'f ':
+			output_type = 1;
+			output_destination = faces;
+			break;
+		}
+
+		if (output_type == 0) {
+			let elems = line.split(' ');
+			if (elems.length != 4) {
+				console.error(`Invalid line: '${line}'.`);
+				return;
+			}
+
+			let entry = []
+			for (let i = 0; i < 3; i++) {
+				if (isNaN(entry[i] = parseFloat(elems[i + 1]))) {
+					console.error(`Invalid line: '${line}'.`);
+					return;
+				}
+			}
+
+			output_destination.push(entry);
+		} else if (output_type == 1) {
+			elems = line.split(' ');
+			if (elems.length != 4) {
+				console.error(`Invalid line: '${line}'.`);
+				return;
+			}
+
+			let entry = new Array(3);
+			for (let i = 0; i < 3; i++) {
+				if ((entry[i] = elems[i + 1].split('/')).length != 3) {
+					console.error(`Invalid line: '${line}'.`);
+					return;
+				}
+				for (let j = 0; j < 3; j++) {
+					if(isNaN(entry[i][j] = parseFloat(entry[i][j]))) {
+						console.error(`Invalid line: '${line}'.`);
+						return;
+					}
+				}
+			}
+
+			output_destination.push(entry);
+		}
+	}
+
+
+	/* Construct new vertex information. */
+	let vbi = [];
+	for (face of faces)
+		for (elem of face)
+			vbi = vbi.concat(vertices[elem[0] - 1].concat(vertex_normals[elem[2] - 1]));
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vbi), gl.DYNAMIC_DRAW);
+	vertex_count = faces.length * 3;
 }
