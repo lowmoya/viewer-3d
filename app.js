@@ -247,6 +247,8 @@ function init()
 	gl.attachShader(program.hdl, vert_shader);
 	gl.attachShader(program.hdl, frag_shader);
 	gl.linkProgram(program.hdl);
+	gl.deleteShader(vert_shader);
+	gl.deleteShader(frag_shader);
 
 	if (!gl.getProgramParameter(program.hdl, gl.LINK_STATUS)) {
 		console.error('| Failed to link shader program |\n'
@@ -304,20 +306,81 @@ function init()
 
 	canvas.onclick = canvas.requestPointerLock;
 	model_selector.onchange = () => {
-		model_selector_label.textContent = model_selector.files[0].name;
+		let file_name = model_selector.files[0].name;
+		let model_parser;
+
+		model_selector_label.textContent = file_name;
+
 
 		let reader = new FileReader();
 		reader.onload = () => {
-			parseModel(reader.result);
+			model_parser(reader.result);
 		}
-		reader.readAsText(model_selector.files[0]);
+		if (file_name.endsWith('.obj')) {
+			model_parser = parseObjModel;
+			reader.readAsText(model_selector.files[0], 'UTF-8');
+		} else if (file_name.endsWith('.fbx')) {
+			model_parser = parseFBXModel;
+			reader.readAsArrayBuffer(model_selector.files[0], 'UTF-8');
+		} else {
+			model_selector_label.textContent = 'Unsupported file extension';
+			return;
+		}
 	};
 
 	<!-- Other Data -->
 	actions.fill(0);
 }
 
-function parseModel(data)
+async function parseFBXModel(data)
+{
+	root = await parseFBX(data);
+	console.log(root);
+
+	/* There will be multiple geometry children in the case of multiple meshes.
+	 * Handle this by having a parse geometry that if geometry is typeof Number
+	 * will check each of the geometries for that number, or will just check
+	 * the geometry of the single object if there is only one. */
+
+	/* Look into the models rotation and scale within the fbx file and applying it.
+	 * For OBJ can just default to a scale of 1 and a rotation of 0. */
+
+	let geometry = root.Objects.Geometry;
+	let polygon_indices = geometry.PolygonVertexIndex.properties[0];
+	let face_count = polygon_indices.length / 3;
+	let vertices = geometry.Vertices.properties[0];
+	let normals = geometry.LayerElementNormal.Normals.properties[0];
+
+	
+	vbi = new Float32Array(face_count * 3 * 6);
+	for (let f = 0; f < face_count; f++) {
+		let face_indices = polygon_indices.slice(f * 3, f * 3 + 3);
+		face_indices[2] = -face_indices[2] - 1;
+		if (face_indices[0] < 0 || face_indices[1] < 0 || face_indices[2] < 0) {
+			alert('Non-triangle faces not supported.');
+			return;
+		}
+		
+
+		for (let v = 0; v < 3; v++) {
+			vbi[f * 18 + v * 6 + 0] = vertices[face_indices[v] * 3];
+			vbi[f * 18 + v * 6 + 1] = vertices[face_indices[v] * 3 + 1];
+			vbi[f * 18 + v * 6 + 2] = vertices[face_indices[v] * 3 + 2];
+
+			vbi[f * 18 + v * 6 + 3] = normals[f * 9 + v * 3 + 0];
+			vbi[f * 18 + v * 6 + 4] = normals[f * 9 + v * 3 + 1];
+			vbi[f * 18 + v * 6 + 5] = normals[f * 9 + v * 3 + 2];
+		}
+
+	}
+	
+	console.log('FBX VBI: ');
+	console.log(vbi);
+	gl.bufferData(gl.ARRAY_BUFFER, vbi, gl.DYNAMIC_DRAW);
+	vertex_count = face_count * 3;
+}
+
+function parseObjModel(data)
 {
 	/* Extract file information. */
 	var lines = data.split('\n');
@@ -389,6 +452,8 @@ function parseModel(data)
 	for (face of faces)
 		for (elem of face)
 			vbi = vbi.concat(vertices[elem[0] - 1].concat(vertex_normals[elem[2] - 1]));
+	console.log('OBJ VBI: ');
+	console.log(vbi);
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vbi), gl.DYNAMIC_DRAW);
 	vertex_count = faces.length * 3;
 }
