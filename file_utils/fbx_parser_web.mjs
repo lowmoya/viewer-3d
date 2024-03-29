@@ -1,8 +1,8 @@
 const FBX_HEADER = 'Kaydara FBX Binary  \0';
 
+export { parseFileData };
 
-
-async function parseFBX(data) {
+async function parseFileData(data) {
 	const byte_view = new Uint8Array(data);
 	const generic_view = new DataView(byte_view.buffer);
 
@@ -19,7 +19,6 @@ async function parseFBX(data) {
 
 	// can stop slicing , use byte offsets instead
 	const version = generic_view.getUint32(23, true) & 16777215;
-	console.log('Version: ' + version);
 	if (version >= 7500) {
 		console.error('Version unsupported...');
 		return null;
@@ -163,23 +162,23 @@ async function parseFBX(data) {
 	// then either have a repeated check on completion every small frame of time for promise.resolve
 	// or have on decrement if complete and then on complete checks, can delete root.complete
 	async function parsePropertyArray(index, view_constructor) {
-		var array_length = generic_view.getUint32(index, true);
-		var encoded = generic_view.getUint32(index + 4, true);
-		var compressed_length = generic_view.getUint32(index + 8, true);
+		const array_length = generic_view.getUint32(index, true);
+		const encoded = generic_view.getUint32(index + 4, true);
+		const compressed_length = generic_view.getUint32(index + 8, true);
 		if (encoded) {
-			encoded_blob = new Blob([byte_view.slice(index + 12, index + 12 + compressed_length)]);
-			ds = new DecompressionStream('deflate');
-			sp = encoded_blob.stream().pipeThrough(ds);
-			decoded_blob = await new Response(sp).blob();
-			decoded = await decoded_blob.arrayBuffer();
+			const encoded_blob = new Blob([byte_view.slice(index + 12, index + 12 + compressed_length)]);
+			const ds = new DecompressionStream('deflate');
+			const sp = encoded_blob.stream().pipeThrough(ds);
+			const decoded_blob = await new Response(sp).blob();
+			const decoded = await decoded_blob.arrayBuffer();
 			return {
 				read_size: compressed_length,
 				data: new view_constructor(decoded)
 			};
 		} else {
-			properties = { read_size: array_length * view_constructor.BYTES_PER_ELEMENT };
-			properties.data = Array.from(new view_constructor(byte_view.slice(index + 12,
-				index + 12 + properties.read_size).buffer));
+			const properties = { read_size: array_length * view_constructor.BYTES_PER_ELEMENT };
+			properties.data = new view_constructor(byte_view.slice(index + 12, index + 12 +
+					properties.read_size).buffer);
 			return properties;
 		}
 	}

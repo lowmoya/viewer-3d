@@ -4,12 +4,18 @@ body {
 	height: 100%;
 }
 
-label {
-	position: absolute;
+#selectors {
+	position:absolute;
 	text-align: center;
-	width: 20%;
-	margin: auto 40%;
+	width: 100%;
+}
+
+label {
+	text-align: center;
+	margin: auto 1%;
+	padding: .2% 2%;
 	color: gray;
+	font-size: 20px;
 	border-width: 2px;
 	border-style: dashed;
 	border-color: gray;

@@ -1,7 +1,11 @@
+import * as fbxParser from './file_utils/fbx_parser_web.mjs'
+import * as objParser from './file_utils/obj_parser_web.mjs'
+
 var canvas;
 var gl;
 var program = {};
 var vbo;
+var texture;
 var vertex_count;
 //var ibo;
 var running = true;
@@ -48,70 +52,13 @@ var camera = {
 	},
 };
 
-const vert_source = `
-attribute vec4 a_vertex;
-attribute vec3 a_normal;
-uniform mat4 u_proj;
-uniform float u_view[5]; // x y z x_pitch y_pitch
-precision highp float;
-
-varying vec3 p_normal;
-varying vec3 p_camera_position;
-varying vec3 p_model_position;
-
-#define xi	0
-#define yi	1
-#define zi	2
-#define xpi	3
-#define ypi	4
-
-void
-main()
-{
-	p_normal = a_normal;
-	p_camera_position = vec3(u_view[xi], u_view[yi], u_view[zi]);
-	p_model_position = a_vertex.xyz;
-
-	float cx = cos(u_view[xpi]);
-	float sx = sin(u_view[xpi]);
-	float cy = cos(u_view[ypi]);
-	float sy = sin(u_view[ypi]);
-	gl_Position = u_proj
-		* mat4(
-			cy,		sx * sy,	-cx * sy,	0.,
-			0.,		cx,			sx,			0.,
-			sy,		-sx * cy,	cx * cy,	0.,
-			0.,		0.,			0.,			1.)
-		* (a_vertex + vec4(u_view[xi], u_view[yi], u_view[zi], 0));
-}
-`;
-const frag_source = `
-precision highp float;
-
-varying vec3 p_normal;
-varying vec3 p_camera_position;
-varying vec3 p_model_position;
-
-const vec3 sun = vec3(0, 1, 2);
-
-void
-main()
-{
-	vec3 unit_normal = normalize(p_normal);
-	float sun_factor = .6 * dot(unit_normal, normalize(sun));
-	if (sun_factor < .0)
-		sun_factor = .0;
-
-	gl_FragColor = vec4(vec3(1.) * (.1 + sun_factor), 1.);
-}
-`;
-
-
 const model_selector = document.getElementById('model-selector');
 const model_selector_label = document.getElementById('model-label');
+const texture_selector = document.getElementById('texture-selector');
+const texture_selector_label = document.getElementById('texture-label');
 
 
-init();
+await init();
 if (running) {
 	tick();
 	render();
@@ -174,10 +121,13 @@ function render()
 	gl.uniform1fv(program.uniforms.view, new Float32Array(view));
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-	gl.vertexAttribPointer(program.attribs.vertex, 3, gl.FLOAT, false, 24, 0);
+	gl.vertexAttribPointer(program.attribs.vertex, 3, gl.FLOAT, false, 32, 0);
 	gl.enableVertexAttribArray(program.attribs.vertex);
-	gl.vertexAttribPointer(program.attribs.normal, 3, gl.FLOAT, false, 24, 12);
+	gl.vertexAttribPointer(program.attribs.normal, 3, gl.FLOAT, false, 32, 12);
 	gl.enableVertexAttribArray(program.attribs.normal);
+	gl.vertexAttribPointer(program.attribs.texture_position, 2, gl.FLOAT, false, 32, 24);
+	gl.enableVertexAttribArray(program.attribs.texture_position);
+
 	gl.drawArrays(gl.TRIANGLES, 0, vertex_count);
 	
 	requestAnimationFrame(render);
@@ -217,9 +167,9 @@ function keydown_callback(event)
 		actions[bindings[event.keyCode]] = 1;
 }
 
-function init()
+async function init()
 {
-	<!-- Context -->
+	// Context
 	canvas = document.getElementById('webgl-canvas');
 	gl = canvas.getContext('webgl');
 	if (gl === null) {
@@ -233,9 +183,13 @@ function init()
 	gl.enable(gl.DEPTH_TEST);
 	gl.enable(gl.CULL_FACE);
 	gl.depthFunc(gl.LEQUAL);
+	gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 
 
-	<!-- Shader Program -->
+	// Shader Program
+	const vert_source = await (await fetch('shaders/plain.vert')).text();
+	const frag_source = await (await fetch('shaders/plain.frag')).text();
+	
 	const vert_shader = gl.createShader(gl.VERTEX_SHADER);
 	gl.shaderSource(vert_shader, vert_source);
 	gl.compileShader(vert_shader);
@@ -259,10 +213,12 @@ function init()
 	
 	program.attribs = {
 		vertex: 0,
-		normal: 1
+		normal: 1,
+		texture_position: 2,
 	};
 	gl.bindAttribLocation(program.hdl, program.attribs.vertex, 'a_vertex');
 	gl.bindAttribLocation(program.hdl, program.attribs.normal, 'a_normal');
+	gl.bindAttribLocation(program.hdl, program.attribs.texture_position, 'a_texture_position');
 	program.uniforms = {
 		proj: gl.getUniformLocation(program.hdl, 'u_proj'),
 		view: gl.getUniformLocation(program.hdl, 'u_view'),
@@ -272,32 +228,32 @@ function init()
 
 
 	
-	<!-- Vertex Info -->
+	// Vertex Info
 	vbo = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
 
 	let vbi = [
-		 .0,  .5,  .0,		3/3,	-2/3,	4/3,
-		 .5, -.5, -.5,		4/3,	-4/3,	2/3,
-		-.5, -.5, -.5,		-1/3,	-2/3,	6/3,
+		 .0,  .5,  .0,		3/3,	-2/3,	4/3, 0.0, 0.0,
+		 .5, -.5, -.5,		4/3,	-4/3,	2/3, 0.0, 0.0,
+		-.5, -.5, -.5,		-1/3,	-2/3,	6/3, 0.0, 0.0,
 
-		 .0,  .5,  .0,		3/3,	-2/3,	4/3,
-		-.5, -.5, -.5,		-1/3,	-2/3,	6/3,
-		 .0, -.5,  .5,		3/3,	-1/3,	0/3,
+		 .0,  .5,  .0,		3/3,	-2/3,	4/3, 0.0, 0.0,
+		-.5, -.5, -.5,		-1/3,	-2/3,	6/3, 0.0, 0.0,
+		 .0, -.5,  .5,		3/3,	-1/3,	0/3, 0.0, 0.0,
 
-		 .0,  .5,  .0,		3/3,	-2/3,	4/3,
-		 .0, -.5,  .5,		3/3,	-1/3,	0/3,
-		 .5, -.5, -.5,		4/3,	-4/3,	2/3,
+		 .0,  .5,  .0,		3/3,	-2/3,	4/3, 0.0, 0.0,
+		 .0, -.5,  .5,		3/3,	-1/3,	0/3, 0.0, 0.0,
+		 .5, -.5, -.5,		4/3,	-4/3,	2/3, 0.0, 0.0,
 
-		 .5, -.5, -.5,		4/3,	-4/3,	2/3,
-		 .0, -.5,  .5,		3/3,	-1/3,	0/3,
-		-.5, -.5, -.5,		-1/3,	-2/3,	6/3,
+		 .5, -.5, -.5,		4/3,	-4/3,	2/3, 0.0, 0.0,
+		 .0, -.5,  .5,		3/3,	-1/3,	0/3, 0.0, 0.0,
+		-.5, -.5, -.5,		-1/3,	-2/3,	6/3, 0.0, 0.0,
 	];
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vbi), gl.DYNAMIC_DRAW);
-	vertex_count = vbi.length / 6;
+	vertex_count = vbi.length / 8;
 
 
-	<!-- Add Callbacks -->
+	// Add Callbacks
 	window.onkeyup = keyup_callback;
 	window.onkeydown = keydown_callback;
 	window.addEventListener('resize', resize_callback);
@@ -309,32 +265,60 @@ function init()
 		let file_name = model_selector.files[0].name;
 		let model_parser;
 
-		model_selector_label.textContent = file_name;
-
-
 		let reader = new FileReader();
 		reader.onload = () => {
-			model_parser(reader.result);
+			model_parser(reader.result).then(value => {
+				if (value == true)
+					texture_selector_label.textContent = '(embedded)';
+			});
 		}
+
 		if (file_name.endsWith('.obj')) {
-			model_parser = parseObjModel;
+			model_selector_label.textContent = file_name;
+			model_parser = parseOBJModel;
 			reader.readAsText(model_selector.files[0], 'UTF-8');
 		} else if (file_name.endsWith('.fbx')) {
+			model_selector_label.textContent = file_name;
 			model_parser = parseFBXModel;
 			reader.readAsArrayBuffer(model_selector.files[0], 'UTF-8');
 		} else {
-			model_selector_label.textContent = 'Unsupported file extension';
+			alert('Unsupported file extension');
 			return;
 		}
 	};
+	texture_selector.onchange = () => {
+		if (texture == undefined) {
+			texture = gl.createTexture();
+			gl.bindTexture(gl.TEXTURE_2D, texture);
+		}
 
-	<!-- Other Data -->
+
+		const image = new Image();
+		image.onload = () => {
+			texture_selector_label.textContent = texture_selector.files[0].name;
+
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+		};
+		image.onerror = () => {
+			alert('Unsupported file.');
+		}
+		const reader = new FileReader();
+		reader.onload = () => {
+			image.src = reader.result;
+		}
+		reader.readAsDataURL(texture_selector.files[0]);
+	}
+
+	// Other Data
 	actions.fill(0);
 }
 
 async function parseFBXModel(data)
 {
-	root = await parseFBX(data);
+	const root = await fbxParser.parseFileData(data);
 	console.log(root);
 
 	/* There will be multiple geometry children in the case of multiple meshes.
@@ -345,14 +329,16 @@ async function parseFBXModel(data)
 	/* Look into the models rotation and scale within the fbx file and applying it.
 	 * For OBJ can just default to a scale of 1 and a rotation of 0. */
 
-	let geometry = root.Objects.Geometry;
-	let polygon_indices = geometry.PolygonVertexIndex.properties[0];
-	let face_count = polygon_indices.length / 3;
-	let vertices = geometry.Vertices.properties[0];
-	let normals = geometry.LayerElementNormal.Normals.properties[0];
+	const geometry = root.Objects.Geometry;
+	const polygon_indices = geometry.PolygonVertexIndex.properties[0];
+	const face_count = polygon_indices.length / 3;
+	const vertices = geometry.Vertices.properties[0];
+	const normals = geometry.LayerElementNormal.Normals.properties[0];
+	const uvs = geometry.LayerElementUV.UV.properties[0];
+	const uv_indices = geometry.LayerElementUV.UVIndex.properties[0];
 
 	
-	vbi = new Float32Array(face_count * 3 * 6);
+	const vbi = new Float32Array(face_count * 3 * 8);
 	for (let f = 0; f < face_count; f++) {
 		let face_indices = polygon_indices.slice(f * 3, f * 3 + 3);
 		face_indices[2] = -face_indices[2] - 1;
@@ -363,97 +349,96 @@ async function parseFBXModel(data)
 		
 
 		for (let v = 0; v < 3; v++) {
-			vbi[f * 18 + v * 6 + 0] = vertices[face_indices[v] * 3];
-			vbi[f * 18 + v * 6 + 1] = vertices[face_indices[v] * 3 + 1];
-			vbi[f * 18 + v * 6 + 2] = vertices[face_indices[v] * 3 + 2];
+			vbi[f * 24 + v * 8 + 0] = vertices[face_indices[v] * 3];
+			vbi[f * 24 + v * 8 + 1] = vertices[face_indices[v] * 3 + 1];
+			vbi[f * 24 + v * 8 + 2] = vertices[face_indices[v] * 3 + 2];
 
-			vbi[f * 18 + v * 6 + 3] = normals[f * 9 + v * 3 + 0];
-			vbi[f * 18 + v * 6 + 4] = normals[f * 9 + v * 3 + 1];
-			vbi[f * 18 + v * 6 + 5] = normals[f * 9 + v * 3 + 2];
+			vbi[f * 24 + v * 8 + 3] = normals[f * 9 + v * 3 + 0];
+			vbi[f * 24 + v * 8 + 4] = normals[f * 9 + v * 3 + 1];
+			vbi[f * 24 + v * 8 + 5] = normals[f * 9 + v * 3 + 2];
+
+			vbi[f * 24 + v * 8 + 6] = uvs[uv_indices[f * 3 + v] * 2 + 0];
+			vbi[f * 24 + v * 8 + 7] = uvs[uv_indices[f * 3 + v] * 2 + 1];
 		}
 
 	}
 	
-	console.log('FBX VBI: ');
-	console.log(vbi);
 	gl.bufferData(gl.ARRAY_BUFFER, vbi, gl.DYNAMIC_DRAW);
 	vertex_count = face_count * 3;
-}
 
-function parseObjModel(data)
-{
-	/* Extract file information. */
-	var lines = data.split('\n');
-	var vertices = []
-	var vertex_normals = [];
-	var faces = [];
 
-	for (line of lines) {
-		let output_type = -1, output_destination = null;
-		switch(line.substring(0, 2)) {
-		case 'v ':
-			output_type = 0;
-			output_destination = vertices;
-			break;
-		case 'vn':
-			output_type = 0;
-			output_destination = vertex_normals;
-			break;
-		case 'f ':
-			output_type = 1;
-			output_destination = faces;
-			break;
-		}
-
-		if (output_type == 0) {
-			let elems = line.split(' ');
-			if (elems.length != 4) {
-				console.error(`Invalid line: '${line}'.`);
-				return;
-			}
-
-			let entry = []
-			for (let i = 0; i < 3; i++) {
-				if (isNaN(entry[i] = parseFloat(elems[i + 1]))) {
-					console.error(`Invalid line: '${line}'.`);
-					return;
-				}
-			}
-
-			output_destination.push(entry);
-		} else if (output_type == 1) {
-			elems = line.split(' ');
-			if (elems.length != 4) {
-				console.error(`Invalid line: '${line}'.`);
-				return;
-			}
-
-			let entry = new Array(3);
-			for (let i = 0; i < 3; i++) {
-				if ((entry[i] = elems[i + 1].split('/')).length != 3) {
-					console.error(`Invalid line: '${line}'.`);
-					return;
-				}
-				for (let j = 0; j < 3; j++) {
-					if(isNaN(entry[i][j] = parseFloat(entry[i][j]))) {
-						console.error(`Invalid line: '${line}'.`);
-						return;
-					}
-				}
-			}
-
-			output_destination.push(entry);
-		}
+	// Stop here, unless there is an embedded texture
+	if (root.Objects.Video == undefined || root.Objects.Video.Content == undefined)
+		return;
+	
+	if (texture == undefined) {
+		texture = gl.createTexture();
+		gl.bindTexture(gl.TEXTURE_2D, texture);
 	}
 
 
+
+	// Load the texture from the embedded image.
+	// The embedded image stored is the entire png file, turn it to a blob so the file reader
+	// can read it, then use that to convert it to the data url, so the image can take it as a
+	// source.
+	const image = new Image();
+	image.onload = () => {
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+	}
+	const reader = new FileReader();
+	reader.onload = () => {
+		image.src = reader.result;
+	};
+	reader.readAsDataURL(new Blob([root.Objects.Video.Content.properties[0]]));
+
+	return true;
+}
+
+async function parseOBJModel(data)
+{
+	/* Extract file information. */
+	const model = objParser.parseFileData(data);
+
 	/* Construct new vertex information. */
-	let vbi = [];
-	for (face of faces)
-		for (elem of face)
-			vbi = vbi.concat(vertices[elem[0] - 1].concat(vertex_normals[elem[2] - 1]));
-	console.log('OBJ VBI: ');
-	console.log(vbi);
-	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vbi), gl.DYNAMIC_DRAW);
-	vertex_count = faces.length * 3;
+	const vbi = new Float32Array(model.faces.length * 3 * 8);
+	var has_uvs = false;
+	var has_normals = false;
+	if (model.faces.length != 0) {
+		if (typeof(model.faces[0][0][1]) == 'number')
+			has_uvs = true;
+		if (typeof(model.faces[0][0][2]) == 'number')
+			has_normals = true;
+	}
+
+	for (const face in model.faces) {
+		for (const vertex in model.faces[face]) {
+			/* Common values */
+			const vertex_data = model.faces[face][vertex];
+			var offset = face * 3 * 8 + vertex * 8;
+
+			/* Insert vertex data */
+			for (let e = 0; e < 3; ++e)
+				vbi[offset + e] = model.vertices[vertex_data[0] - 1][e];
+			offset += 3;
+			if (has_normals)
+				for (let e = 0; e < 3; ++e)
+					vbi[offset + e] = model.normals[vertex_data[2] - 1][e];
+			else
+				for (let e = 0; e < 3; ++e)
+					vbi[offset + e] = 0;
+			offset += 3;
+			if (has_uvs)
+				for (let e = 0; e < 2; ++e)
+					vbi[offset + e] = model.uvs[vertex_data[1] - 1][e];
+			else
+				for (let e = 0; e < 2; ++e)
+					vbi[offset + e] = 0;
+		}
+	}
+	gl.bufferData(gl.ARRAY_BUFFER, vbi, gl.DYNAMIC_DRAW);
+	vertex_count = model.faces.length * 3;
 }
