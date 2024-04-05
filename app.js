@@ -1,4 +1,5 @@
 import * as fbxParser from './file_utils/fbx_parser_web.mjs'
+import * as glbParser from './file_utils/glb_parser_web.mjs'
 import * as objParser from './file_utils/obj_parser_web.mjs'
 
 var canvas;
@@ -281,6 +282,10 @@ async function init()
 			model_selector_label.textContent = file_name;
 			model_parser = parseFBXModel;
 			reader.readAsArrayBuffer(model_selector.files[0], 'UTF-8');
+		} else if (file_name.endsWith('.glb')) {
+			model_selector_label.textContent = file_name;
+			model_parser = parseGLBModel;
+			reader.readAsArrayBuffer(model_selector.files[0], 'UTF-8');
 		} else {
 			alert('Unsupported file extension');
 			return;
@@ -396,6 +401,11 @@ async function parseFBXModel(data)
 	reader.readAsDataURL(new Blob([root.Objects.Video.Content.properties[0]]));
 
 	return true;
+}
+
+async function parseGLBModel(data)
+{
+	glbParser.parseFileData(data);
 }
 
 async function parseOBJModel(data)
