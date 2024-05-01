@@ -1,8 +1,8 @@
 const FBX_HEADER = 'Kaydara FBX Binary  \0';
 
-export { parseFileData };
+export { parseData };
 
-async function parseFileData(data) {
+async function parseData(data) {
 	const byte_view = new Uint8Array(data);
 	const generic_view = new DataView(byte_view.buffer);
 
@@ -192,5 +192,89 @@ function arrayEquals(a, b) {
 	for (i in a)
 		if (a[i] != b[i])
 			return false;
+	return true;
+}
+
+
+
+async function parseFBXModel(data)
+{
+	const root = await fbxParser.parseFileData(data);
+	console.log(root);
+
+	/* There will be multiple geometry children in the case of multiple meshes.
+	 * Handle this by having a parse geometry that if geometry is typeof Number
+	 * will check each of the geometries for that number, or will just check
+	 * the geometry of the single object if there is only one. */
+
+	/* Look into the models rotation and scale within the fbx file and applying it.
+	 * For OBJ can just default to a scale of 1 and a rotation of 0. */
+
+	const geometry = root.Objects.Geometry;
+	const polygon_indices = geometry.PolygonVertexIndex.properties[0];
+	const face_count = polygon_indices.length / 3;
+	const vertices = geometry.Vertices.properties[0];
+	const normals = geometry.LayerElementNormal.Normals.properties[0];
+	const uvs = geometry.LayerElementUV.UV.properties[0];
+	const uv_indices = geometry.LayerElementUV.UVIndex.properties[0];
+
+	
+	const vbi = new Float32Array(face_count * 3 * 8);
+	for (let f = 0; f < face_count; f++) {
+		let face_indices = polygon_indices.slice(f * 3, f * 3 + 3);
+		face_indices[2] = -face_indices[2] - 1;
+		if (face_indices[0] < 0 || face_indices[1] < 0 || face_indices[2] < 0) {
+			alert('Non-triangle faces not supported.');
+			return;
+		}
+		
+
+		for (let v = 0; v < 3; v++) {
+			vbi[f * 24 + v * 8 + 0] = vertices[face_indices[v] * 3];
+			vbi[f * 24 + v * 8 + 1] = vertices[face_indices[v] * 3 + 1];
+			vbi[f * 24 + v * 8 + 2] = vertices[face_indices[v] * 3 + 2];
+
+			vbi[f * 24 + v * 8 + 3] = normals[f * 9 + v * 3 + 0];
+			vbi[f * 24 + v * 8 + 4] = normals[f * 9 + v * 3 + 1];
+			vbi[f * 24 + v * 8 + 5] = normals[f * 9 + v * 3 + 2];
+
+			vbi[f * 24 + v * 8 + 6] = uvs[uv_indices[f * 3 + v] * 2 + 0];
+			vbi[f * 24 + v * 8 + 7] = uvs[uv_indices[f * 3 + v] * 2 + 1];
+		}
+
+	}
+	
+	gl.bufferData(gl.ARRAY_BUFFER, vbi, gl.DYNAMIC_DRAW);
+	vertex_count = face_count * 3;
+
+
+	// Stop here, unless there is an embedded texture
+	if (root.Objects.Video == undefined || root.Objects.Video.Content == undefined)
+		return;
+	
+	if (texture == undefined) {
+		texture = gl.createTexture();
+		gl.bindTexture(gl.TEXTURE_2D, texture);
+	}
+
+
+
+	// Load the texture from the embedded image.
+	// The embedded image stored is the entire png file, turn it to a blob so the file reader
+	// can read it, then use that to convert it to the data url, so the image can take it as a
+	// source.
+	const image = new Image();
+	image.onload = () => {
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+	}
+	const reader = new FileReader();
+	reader.onload = () => {
+		image.src = reader.result;
+	};
+	reader.readAsDataURL(new Blob([root.Objects.Video.Content.properties[0]]));
+
 	return true;
 }
