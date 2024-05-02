@@ -7,12 +7,39 @@
 </head>
 <body>
 	<div style='width: 100%; text-align: center; position: absolute'>
-		<label for='model-selector' id='model-label'>No file selected.</label>
-		<input type=file id='model-selector'>
+		<label id='model-label' for='model-selector'>No file selected.</label>
+		<input id='model-selector' type=file style='position:absolute;visibility:hidden'>
+	</div>
+	<div id='material-selector'>
+		<h4>The following meshes are missing materials. Please create a material for them or
+			confirm that they should not have a material.</h4>
+		<h6>Materials</h6>
+		<div id='material-selector--material-list'></div>
+		<div id='material-selector--new-material'>
+			<input id='material-selector--new-material--title' type='text'
+				placeholder='Material Title' />
+			<select id='material-selector--new-material--type'>
+				<option>Image</option>
+				<option>Color</option>
+			</select>
+			<label id='material-selector--new-material--file-label'
+				for='material-selector--new-material--file'></label>
+			<input id='material-selector--new-material--file' accept='.png,.jpg,.jpeg'
+				style='display: none;' type='file' />
+			<input id='material-selector--new-material--color' type='color' value='#AAAAFF' />
+			<input id='material-selector--new-material--add' type='button' value='+' />
+		</div>
+		<h6>Meshes</h6>
+		<div id='material-selector--mesh-list'></div>
+		<div id='material-selector--main-buttons'>
+			<input id='material-selector--main-buttons--cancel' type='button' value='Cancel' />
+			<input id='material-selector--main-buttons--okay' type='button' value='Okay' />
+		</div>
 	</div>
 	<canvas id='webgl-canvas'></canvas>
 </body>
 <footer>
+	<script type='module' src='material_selector.mjs'></script>
 	<script type='module' src='file_utils/fbx_parser_web.mjs'></script>
 	<script type='module' src='file_utils/glb_parser_web.mjs'></script>
 	<script type='module' src='file_utils/obj_parser_web.mjs'></script>

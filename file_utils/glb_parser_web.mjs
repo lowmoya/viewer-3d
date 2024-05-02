@@ -1,4 +1,4 @@
-export { createGLB, loadGLB };
+export { createGLB, createModel, freeModel, saveGLB };
 
 // Take in a raw GLB file, validate it, and read it's
 // data into a GLB structure
@@ -54,9 +54,10 @@ async function createGLB(data)
 // Take in an OpenGL context and a GLB structure, return a model,
 // which is a modification of the structure to removed unused members
 // and push some of its data to the GPU
-async function loadGLB(gl, glb) {
+async function createModel(gl, glb) {
 	console.log(glb);
 	/* Start model collection */
+	// TODO change to only clone the fields that it directly copies
 	const model = {};
 	glb = structuredClone(glb);
 
@@ -292,10 +293,14 @@ async function loadGLB(gl, glb) {
 	}
 
 	// Load textures into to the GPU
+	// TODO look into adittional textures and the other emissive factors
+	// TODO this is an example of where it could just copy that section rather than the whole
+	//		format
 	model.materials = glb.materials;
-	model.textures = [];
-	for (let index in glb.images) {
-		const image_desc = glb.images[index];
+	if (glb.textures != undefined)
+		model.textures = [];
+	for (let index in glb.textures) {
+		const image_desc = glb.images[glb.textures[index].source];
 		const buffer_view = glb.bufferViews[image_desc.bufferView];
 
 		// TODO Add support for bufferviews with non-embedded buffers
@@ -331,17 +336,50 @@ async function loadGLB(gl, glb) {
 
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-		// TODO Give the user a way to select between linear and nearest
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+
+		const sampler = glb.samplers?.[glb.textures[index].sampler];
+		if (sampler != undefined) {
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, sampler.minFilter != undefined
+				? sampler.minFilter : gl.LINEAR);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, sampler.magFilter != undefined
+				? sampler.magFilter : gl.LINEAR);
+		} else {
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+		}
+
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE,
 			image);
+		gl.generateMipmap(gl.TEXTURE_2D);
 	}
 
+	console.log(model);
 	return model;
 }
 
 // Take in a model, created from loadGLB, and unload it's GPU-tied data
-function unloadGLB(model) {
+function freeModel(gl, model) {
+	// Remove ties
+	for (const node of model.nodes) {
+		node.mesh = undefined;
+	}
+
+	// Free vertex data
+	for (const mesh of model.meshes) {
+		for (const primitive of mesh.primitives) {
+			gl.deleteBuffer(primitive.buffer);
+		}
+		if (mesh.indices != undefined) {
+			gl.deleteBuffer(mesh.indices.buffer);
+		}
+	}
+	model.meshes.length = 0;
+
+	// Free textures
+	for (const texture of model.textures) {
+		gl.deleteTexture(texture);
+	}
+	model.textures.length = 0;
 }
 
 

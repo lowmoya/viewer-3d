@@ -4,7 +4,7 @@ body {
 	height: 100%;
 }
 
-label {
+#model-label {
 	position: relative;
 	display: block;
 
@@ -15,17 +15,135 @@ label {
 	text-align: center;
 	font-size: 20px;
 	color: gray;
+	user-select: none;
 
 	border-width: 2px;
 	border-style: dashed;
 	border-color: gray;
 }
 
-input {
-	visibility: hidden;
-	position: absolute;
-}
-
 canvas {
 	display: block;
+}
+
+#material-selector {
+	visibility: hidden;
+	position: absolute;
+	padding: 40px 2%;
+	margin: auto;
+
+	width: 600px;
+	left: 50%;
+	transform: translate(-50%);
+	top: 6%;
+
+	height: fit-content;
+	max-height: 80%;
+	overflow-y: auto;
+
+	color: darkslategray;
+	background-color: whitesmoke;
+
+	border-width: 2px;
+	border-style: solid;
+	border-color: darkslategray;
+}
+
+#material-selector--main-buttons {
+	display: flex;
+	flex-direction: row;
+	justify-content: center;
+
+	margin: 50px 0;
+	width: 100%;
+}
+
+#material-selector--main-buttons > input {
+	position: relative;
+
+	width: 120px;
+	margin: 0 10px;
+
+	color: darkslategray;
+	font-size: 16px;
+}
+
+#material-selector--material-list, #material-selector--mesh-list {
+	min-height: 20px;
+	margin-bottom: 20px;
+
+	border-style: solid;
+	border-width: 2px;
+	border-color: slategray;
+
+	padding: 6px;
+}
+
+#material-selector--new-material {
+	display:flex;
+	align-content:center;
+	height: 30px;
+}
+
+#material-selector--new-material > * {
+	height: 100%;
+	width: 160px;
+
+	margin-right: 8px;
+	border-width: 2px;
+	border-style: solid;
+	border-color: slategray;
+	padding: 2px;
+
+	color: darkslategray;
+	background-color: white;
+	font-size: 14px;
+}
+
+#material-selector--new-material > *:hover {
+	filter: brightness(.9);
+}
+#material-selector--new-material > *:active {
+	filter: brightness(.8);
+}
+
+#material-selector--new-material--type {
+	width: 80px;
+	height: 38px;
+}
+#material-selector--new-material--file-label {
+	align-content: center;
+}
+#material-selector--new-material--color {
+	height: 38px;
+	padding: 0;
+	width: 40px;
+}
+
+#material-selector--new-material--add {
+	position: relative;
+	margin-left: 20px;
+
+	height: 38px;
+	width: 40px;
+
+	color: darkslategray;
+	font-size: 16px;
+}
+
+#material-selector--mesh-list > div {
+	display: flex;
+	flex-direction: row;
+	justify-content: left;
+	align-items: center;
+
+	width: 100%;
+}
+
+#material-selector--mesh-list > div > p {
+	margin: 10px 10px;
+}
+
+#material-selector--mesh-list > div > select {
+	height: 80%;
 }

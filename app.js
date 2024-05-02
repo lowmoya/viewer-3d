@@ -1,7 +1,7 @@
 // Imports
-import * as FBXParser from './file_utils/fbx_parser_web.mjs'
-import * as GLBParser from './file_utils/glb_parser_web.mjs'
-import * as OBJParser from './file_utils/obj_parser_web.mjs'
+import * as FBXParser from './file_utils/fbx_parser_web.mjs';
+import * as GLBParser from './file_utils/glb_parser_web.mjs';
+import * as OBJParser from './file_utils/obj_parser_web.mjs';
 
 
 // Definitions
@@ -299,15 +299,23 @@ async function init()
 
 	canvas.onclick = canvas.requestPointerLock;
 	model_selector.onchange = () => {
+		model_selector.disabled = true;
 		let file_name = model_selector.files[0].name;
 		let parser;
 
 		let reader = new FileReader();
 		reader.onload = () => {
 			parser.createGLB(reader.result).then(glb => {
-				return GLBParser.loadGLB(gl, glb);
-			}).then(result => {
-				models.push(result);
+				if (glb != null) {
+					GLBParser.createModel(gl, glb).then(result => {
+						while (models.length != 0)
+							GLBParser.freeModel(gl, models.pop());
+						models.push(result);
+						model_selector.disabled = false;
+					});
+				} else {
+					model_selector.disabled = false;
+				}
 			});
 		};
 
@@ -328,6 +336,7 @@ async function init()
 			reader.readAsArrayBuffer(model_selector.files[0], 'UTF-8');
 		} else {
 			alert('Unsupported file extension');
+			model_selector.disabled = false;
 			return;
 		}
 	};
