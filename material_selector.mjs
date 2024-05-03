@@ -24,6 +24,8 @@ var materials;
 // TODO Add additional materials to an existing materials list
 // TODO Remove material button from the material list
 // TODO Different filters support
+// TODO roughness and the like
+//		maybe an advance material button ?
 async function open(meshes) {
 	// Check that it's not already open
 	if (widget.style.visibility == 'visible')

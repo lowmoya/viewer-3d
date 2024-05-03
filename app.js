@@ -131,9 +131,8 @@ function render()
 				node.matrix == undefined ? matrix_identity : node.matrix);
 		
 			for (let primitive of mesh.primitives) {
-				// TODO apply the primitive material
-				// If no material, should set shader to color shader and just
-				// render a white color
+				// Bind the material
+				// TODO look into roughness factor and metallic factor rendering
 				if (primitive.material != undefined) {
 					const material = model.materials[primitive.material]
 							.pbrMetallicRoughness;
@@ -243,7 +242,8 @@ async function init()
 	gl.clearColor(0., 0., 0., 1.);
 	gl.clearDepth(1.);
 	gl.enable(gl.DEPTH_TEST);
-	gl.enable(gl.CULL_FACE);
+	// TODO grant control per material for culling faces
+	gl.disable(gl.CULL_FACE);
 	gl.depthFunc(gl.LEQUAL);
 	gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
 

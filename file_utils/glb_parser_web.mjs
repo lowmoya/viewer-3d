@@ -56,6 +56,7 @@ async function createGLB(data)
 // and push some of its data to the GPU
 async function createModel(gl, glb) {
 	console.log(glb);
+
 	/* Start model collection */
 	// TODO change to only clone the fields that it directly copies
 	const model = {};
@@ -147,6 +148,7 @@ async function createModel(gl, glb) {
 
 	// Copy mesh data to primitives and adjust the mesh indices to erase
 	// any gaps.
+	// TODO if used on a machine of different endianness, will not work
 	let last_index = 0;
 	for (let index in model.meshes) {
 		index = parseInt(index);
@@ -160,7 +162,7 @@ async function createModel(gl, glb) {
 				primitive.indexed = true;
 				delete primitive.indices;
 			} else {
-				primitive.vertices = glb.accessors[primitve.attributes['POSITION']].count;
+				primitive.vertices = glb.accessors[primitive.attributes['POSITION']].count;
 				primitive.indexed = false;
 			}
 
@@ -198,9 +200,10 @@ async function createModel(gl, glb) {
 					return null;
 				}
 
+				// TODO look into stride
 				attribute.buffer = gl.createBuffer()
-				const buffer_loc = attribute_index != 'INDICES' ? gl.ARRAY_BUFFER
-					: gl.ELEMENT_ARRAY_BUFFER;
+				const buffer_loc = buffer_view.target ? buffer_view.target
+					: attribute_index != 'INDICES' ? gl.ARRAY_BUFFER : gl.ELEMENT_ARRAY_BUFFER;
 				gl.bindBuffer(buffer_loc, attribute.buffer);
 
 				const data = glb.embedded.subarray(buffer_view.byteOffset,
@@ -220,6 +223,7 @@ async function createModel(gl, glb) {
 			}
 
 			// Seperate indices
+			// TODO Integer indices are incompatible with WebGL, manually index their elements.
 			if (primitive.indexed) {
 				primitive.indices = primitive.attributes.INDICES;
 				delete primitive.attributes.INDICES;
@@ -322,12 +326,24 @@ async function createModel(gl, glb) {
 			image.onload = () => {
 				res_img(image);
 			};
+			image.onerror = () => {
+				// TODO what to do here
+				console.log('Failed to load image');
+				res(null);
+			};
 			const reader = new FileReader();
 			reader.onload = () => {
 				image.src = reader.result;
 			};
+			reader.onerror = () => {
+				// TODO what to do here
+				console.log('Failed to load image');
+				res(null);
+			}
 			reader.readAsDataURL(rawBlob);
 		});
+		if (image == null)
+			return;
 
 
 		// Create a texture from the image
@@ -353,33 +369,35 @@ async function createModel(gl, glb) {
 		gl.generateMipmap(gl.TEXTURE_2D);
 	}
 
-	console.log(model);
 	return model;
 }
 
 // Take in a model, created from loadGLB, and unload it's GPU-tied data
 function freeModel(gl, model) {
 	// Remove ties
-	for (const node of model.nodes) {
-		node.mesh = undefined;
-	}
+	if (model.nodes != undefined)
+		for (const node of model.nodes)
+			node.mesh = undefined;
 
 	// Free vertex data
-	for (const mesh of model.meshes) {
-		for (const primitive of mesh.primitives) {
-			gl.deleteBuffer(primitive.buffer);
+	if (model.meshes != undefined) {
+		for (const mesh of model.meshes) {
+			for (const primitive of mesh.primitives) {
+				gl.deleteBuffer(primitive.buffer);
+			}
+			if (mesh.indices != undefined) {
+				gl.deleteBuffer(mesh.indices.buffer);
+			}
 		}
-		if (mesh.indices != undefined) {
-			gl.deleteBuffer(mesh.indices.buffer);
-		}
+		model.meshes.length = 0;
 	}
-	model.meshes.length = 0;
 
 	// Free textures
-	for (const texture of model.textures) {
-		gl.deleteTexture(texture);
+	if (model.textures != undefined) {
+		for (const texture of model.textures)
+			gl.deleteTexture(texture);
+		model.textures.length = 0;
 	}
-	model.textures.length = 0;
 }
 
 
