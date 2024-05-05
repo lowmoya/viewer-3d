@@ -14,7 +14,7 @@ async function parseData(data)
 
 	// TODO start out with array buffer data
 	for (const line of data.split('\n')) {
-		let output_type = -1, output_count, output_destination = null;
+		let output_type = -1, output_count, output_destination = null, flip = false;
 		switch(line.substring(0, 2)) {
 		case 'v ':
 			output_type = 0;
@@ -30,6 +30,7 @@ async function parseData(data)
 			output_type = 0;
 			output_count = 2;
 			output_destination = texture_positions;
+			flip = true;
 			break;
 		case 'f ':
 			output_type = 1;
@@ -58,6 +59,10 @@ async function parseData(data)
 					return;
 				}
 			}
+
+			// why doesn't this just flip it
+			if (false)
+				entry[1] = -entry[1];
 
 			output_destination.push(entry);
 		} else if (output_type == 1) {
@@ -190,7 +195,6 @@ async function createGLB(data)
 			type: 'VEC2'
 		});
 		embedded_entries.push(new Uint8Array(texcoord_data.buffer));
-		console.log(embedded_entries[embedded_entries.length - 1]);
 
 		primitive.attributes.NORMAL = glb.accessors.length;
 		glb.accessors.push({

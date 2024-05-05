@@ -55,8 +55,6 @@ async function createGLB(data)
 // which is a modification of the structure to removed unused members
 // and push some of its data to the GPU
 async function createModel(gl, glb) {
-	console.log(glb);
-
 	/* Start model collection */
 	// TODO change to only clone the fields that it directly copies
 	const model = {};
@@ -208,6 +206,8 @@ async function createModel(gl, glb) {
 
 				const data = glb.embedded.subarray(buffer_view.byteOffset,
 					buffer_view.byteOffset + buffer_view.byteLength);
+				console.log(attribute_index);
+				console.log(new Float32Array(data.buffer, data.byteOffset, data.byteLength / 4));
 				gl.bufferData(buffer_loc, data, gl.STATIC_DRAW);
 
 				primitive.attributes[attribute_index] = attribute;
