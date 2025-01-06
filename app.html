@@ -2,22 +2,63 @@
 <html>
 
 <head>
-	<title>WebGL Demo</title>
+	<title>Model viewer</title>
 	<link rel='stylesheet' href='app.css'>
 </head>
 <body>
+<<<<<<< HEAD
 	<div id='selectors'>
 		<label for='model-selector' id='model-label'>No model file selected.</label>
 		<input type=file id='model-selector'>
 		<label for='texture-selector' id='texture-label'>No texture file selected.</label>
 		<input type=file id='texture-selector'>
+=======
+	<div style='width: 100%; text-align: center; position: absolute'>
+		<label id='model-label' for='model-selector'>No file selected.</label>
+		<input id='model-selector' type=file accept='.glb,.obj,.fbx'
+			style='position:absolute;visibility:hidden'>
+	</div>
+	<div id='material-selector'>
+		<h4>The following meshes are missing materials. Please create a material for them or
+			confirm that they should not have a material.</h4>
+		<h6>Materials</h6>
+		<div id='material-selector--material-list'></div>
+		<div id='material-selector--new-material'>
+			<input id='material-selector--new-material--title' type='text'
+				placeholder='Material Title' />
+			<select id='material-selector--new-material--type'>
+				<option>Image</option>
+				<option>Color</option>
+			</select>
+			<label id='material-selector--new-material--file-label'
+				for='material-selector--new-material--file'></label>
+			<input id='material-selector--new-material--file' accept='.png,.jpg,.jpeg'
+				style='display: none;' type='file' />
+			<input id='material-selector--new-material--color' type='color' value='#AAAAFF' />
+			<input id='material-selector--new-material--add' type='button' value='+' />
+		</div>
+		<h6>Meshes</h6>
+		<div id='material-selector--mesh-list'></div>
+		<div id='material-selector--main-buttons'>
+			<input id='material-selector--main-buttons--cancel' type='button' value='Cancel' />
+			<input id='material-selector--main-buttons--okay' type='button' value='Okay' />
+		</div>
+>>>>>>> b853bfe6a279fa153c8fae1a104bd26df7fa023a
 	</div>
 	<canvas id='webgl-canvas'></canvas>
 </body>
 <footer>
+<<<<<<< HEAD
 	<script src='fbx_parser_web.js'></script>
 	<script src='png_parser_web.js'></script>
 	<script src='app.js'></script>
+=======
+	<script type='module' src='material_selector.mjs'></script>
+	<script type='module' src='file_utils/fbx_parser_web.mjs'></script>
+	<script type='module' src='file_utils/glb_parser_web.mjs'></script>
+	<script type='module' src='file_utils/obj_parser_web.mjs'></script>
+	<script type='module' src='app.js'></script>
+>>>>>>> b853bfe6a279fa153c8fae1a104bd26df7fa023a
 </footer>
 
 </html>
