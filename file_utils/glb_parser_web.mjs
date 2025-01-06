@@ -31,7 +31,6 @@ async function createGLB(data)
 	index += 8 + first_length;
 
 	if (index == file_length) {
-		console.log('File end.');
 		return glb;
 	}
 
@@ -58,6 +57,7 @@ async function createModel(gl, glb) {
 	/* Start model collection */
 	// TODO change to only clone the fields that it directly copies
 	const model = {};
+	console.log('createModel input', glb);
 	glb = structuredClone(glb);
 
 	// Get a list of all nodes
@@ -70,9 +70,13 @@ async function createModel(gl, glb) {
 			model.nodes = glb.scenes[glb.scene].nodes;
 		}
 
+		console.log('createModel before adding nodes', structuredClone(model.nodes),
+			model.nodes.length);
 		// Switch indices out for their objects and handle children
 		for (let index = 0; index < model.nodes.length; ++index) {
 			model.nodes[index] = glb.nodes[model.nodes[index]];
+			console.log('createModel during adding nodes', structuredClone(model.nodes),
+				model.nodes.length);
 
 			// Add this nodes children
 			if (model.nodes[index].children != undefined) {
@@ -206,8 +210,6 @@ async function createModel(gl, glb) {
 
 				const data = glb.embedded.subarray(buffer_view.byteOffset,
 					buffer_view.byteOffset + buffer_view.byteLength);
-				console.log(attribute_index);
-				console.log(new Float32Array(data.buffer, data.byteOffset, data.byteLength / 4));
 				gl.bufferData(buffer_loc, data, gl.STATIC_DRAW);
 
 				primitive.attributes[attribute_index] = attribute;
@@ -369,6 +371,7 @@ async function createModel(gl, glb) {
 		gl.generateMipmap(gl.TEXTURE_2D);
 	}
 
+	console.log('createModel output', model);
 	return model;
 }
 
