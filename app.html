@@ -6,12 +6,17 @@
 	<link rel='stylesheet' href='app.css'>
 </head>
 <body>
-	<label for='model-selector' id='model-label'>No file selected.</label>
-	<input type=file id='model-selector'>
+	<div id='selectors'>
+		<label for='model-selector' id='model-label'>No model file selected.</label>
+		<input type=file id='model-selector'>
+		<label for='texture-selector' id='texture-label'>No texture file selected.</label>
+		<input type=file id='texture-selector'>
+	</div>
 	<canvas id='webgl-canvas'></canvas>
 </body>
 <footer>
 	<script src='fbx_parser_web.js'></script>
+	<script src='png_parser_web.js'></script>
 	<script src='app.js'></script>
 </footer>
 

@@ -3,6 +3,7 @@ var gl;
 var program = {};
 var vbo;
 var vertex_count;
+var texture;
 //var ibo;
 var running = true;
 var tick_delay = 1000 / 30;
@@ -51,10 +52,12 @@ var camera = {
 const vert_source = `
 attribute vec4 a_vertex;
 attribute vec3 a_normal;
+attribute vec2 a_uv;
 uniform mat4 u_proj;
 uniform float u_view[5]; // x y z x_pitch y_pitch
 precision highp float;
 
+varying vec2 p_uv;
 varying vec3 p_normal;
 varying vec3 p_camera_position;
 varying vec3 p_model_position;
@@ -68,6 +71,8 @@ varying vec3 p_model_position;
 void
 main()
 {
+	p_uv = a_uv;
+	// Note: when rotating the model itself, remember to also roate the normals
 	p_normal = a_normal;
 	p_camera_position = vec3(u_view[xi], u_view[yi], u_view[zi]);
 	p_model_position = a_vertex.xyz;
@@ -88,6 +93,9 @@ main()
 const frag_source = `
 precision highp float;
 
+uniform sampler2D u_sampler;
+
+varying vec2 p_uv;
 varying vec3 p_normal;
 varying vec3 p_camera_position;
 varying vec3 p_model_position;
@@ -102,14 +110,17 @@ main()
 	if (sun_factor < .0)
 		sun_factor = .0;
 
-	gl_FragColor = vec4(vec3(1.) * (.1 + sun_factor), 1.);
+	gl_FragColor = texture2D(u_sampler, p_uv);
+	//gl_FragColor.xyz *= 0.1 + sun_factor;
+	gl_FragColor += vec4(.1);
 }
 `;
 
 
 const model_selector = document.getElementById('model-selector');
 const model_selector_label = document.getElementById('model-label');
-
+const texture_selector = document.getElementById('texture-selector');
+const texture_selector_label = document.getElementById('texture-label');
 
 init();
 if (running) {
@@ -174,10 +185,13 @@ function render()
 	gl.uniform1fv(program.uniforms.view, new Float32Array(view));
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-	gl.vertexAttribPointer(program.attribs.vertex, 3, gl.FLOAT, false, 24, 0);
+	gl.vertexAttribPointer(program.attribs.vertex, 3, gl.FLOAT, false, 32, 0);
 	gl.enableVertexAttribArray(program.attribs.vertex);
-	gl.vertexAttribPointer(program.attribs.normal, 3, gl.FLOAT, false, 24, 12);
+	gl.vertexAttribPointer(program.attribs.normal, 3, gl.FLOAT, false, 32, 12);
 	gl.enableVertexAttribArray(program.attribs.normal);
+	gl.vertexAttribPointer(program.attribs.uv, 2, gl.FLOAT, false, 32, 24);
+	gl.enableVertexAttribArray(program.attribs.uv);
+
 	gl.drawArrays(gl.TRIANGLES, 0, vertex_count);
 	
 	requestAnimationFrame(render);
@@ -259,16 +273,20 @@ function init()
 	
 	program.attribs = {
 		vertex: 0,
-		normal: 1
+		normal: 1,
+		uv: 2
 	};
 	gl.bindAttribLocation(program.hdl, program.attribs.vertex, 'a_vertex');
 	gl.bindAttribLocation(program.hdl, program.attribs.normal, 'a_normal');
+	gl.bindAttribLocation(program.hdl, program.attribs.uv, 'a_uv');
 	program.uniforms = {
 		proj: gl.getUniformLocation(program.hdl, 'u_proj'),
 		view: gl.getUniformLocation(program.hdl, 'u_view'),
 	}
+	
 
-
+	gl.useProgram(program.hdl);
+	gl.uniform1i(gl.getUniformLocation(program.hdl, 'u_sampler'), 0);
 
 
 	
@@ -327,6 +345,33 @@ function init()
 			return;
 		}
 	};
+	texture_selector.onchange = () => {
+		let file_name = texture_selector.files[0].name;
+		if (!file_name.endsWith('.png')) {
+			alert('Unsupported file format');
+			return;
+		}
+		texture_selector_label.textContent = file_name;
+
+
+		const img = new Image();
+		img.onload = () => {
+			if (texture != undefined)
+				gl.deleteTexture(texture);
+			console.log(img);
+			texture = gl.createTexture();
+			gl.bindTexture(gl.TEXTURE_2D, texture);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE,
+				img);
+		};
+
+		const reader = new FileReader();
+		reader.onload = event => {
+			img.src = event.target.result;
+		}
+		reader.readAsDataURL(texture_selector.files[0]);
+
+	};
 
 	<!-- Other Data -->
 	actions.fill(0);
@@ -340,7 +385,11 @@ async function parseFBXModel(data)
 	/* There will be multiple geometry children in the case of multiple meshes.
 	 * Handle this by having a parse geometry that if geometry is typeof Number
 	 * will check each of the geometries for that number, or will just check
-	 * the geometry of the single object if there is only one. */
+	 * the geometry of the single object if there is only one.
+	 *
+	 * If embeded texture, load it, and change the name of the texture file
+	 *
+	 * */
 
 	/* Look into the models rotation and scale within the fbx file and applying it.
 	 * For OBJ can just default to a scale of 1 and a rotation of 0. */
@@ -386,18 +435,26 @@ function parseObjModel(data)
 	var lines = data.split('\n');
 	var vertices = []
 	var vertex_normals = [];
+	var uvs = [];
 	var faces = [];
 
 	for (line of lines) {
-		let output_type = -1, output_destination = null;
+		let output_type = -1, elem_count, output_destination = null;
 		switch(line.substring(0, 2)) {
 		case 'v ':
 			output_type = 0;
+			elem_count = 3;
 			output_destination = vertices;
 			break;
 		case 'vn':
 			output_type = 0;
+			elem_count = 3;
 			output_destination = vertex_normals;
+			break;
+		case 'vt':
+			output_type = 0;
+			elem_count = 2;
+			output_destination = uvs;
 			break;
 		case 'f ':
 			output_type = 1;
@@ -407,13 +464,13 @@ function parseObjModel(data)
 
 		if (output_type == 0) {
 			let elems = line.split(' ');
-			if (elems.length != 4) {
+			if (elems.length != elem_count + 1) {
 				console.error(`Invalid line: '${line}'.`);
 				return;
 			}
 
 			let entry = []
-			for (let i = 0; i < 3; i++) {
+			for (let i = 0; i < elem_count; i++) {
 				if (isNaN(entry[i] = parseFloat(elems[i + 1]))) {
 					console.error(`Invalid line: '${line}'.`);
 					return;
@@ -451,7 +508,7 @@ function parseObjModel(data)
 	let vbi = [];
 	for (face of faces)
 		for (elem of face)
-			vbi = vbi.concat(vertices[elem[0] - 1].concat(vertex_normals[elem[2] - 1]));
+			vbi = vbi.concat(vertices[elem[0] - 1].concat(vertex_normals[elem[2] - 1]).concat(uvs[elem[1] - 1]));
 	console.log('OBJ VBI: ');
 	console.log(vbi);
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vbi), gl.DYNAMIC_DRAW);

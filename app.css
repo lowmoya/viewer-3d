@@ -4,15 +4,21 @@ body {
 	height: 100%;
 }
 
-label {
+#selectors {
 	position: absolute;
 	text-align: center;
-	width: 20%;
-	margin: auto 40%;
+	width: 40%;
+	margin: auto 30%;
+}
+
+label {
 	color: gray;
 	border-width: 2px;
 	border-style: dashed;
 	border-color: gray;
+	margin: 0 5% 0 0;
+	padding: 1% 5%;
+	white-space: nowrap;
 }
 
 input {
